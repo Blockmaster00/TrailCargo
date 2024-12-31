@@ -1,5 +1,7 @@
 local playerDataTable = {}
 
+tm.physics.AddTexture("assets/map.png", "Map")
+
 tm.physics.AddTexture("vehicles/StarterBuggy.png", "Starter Buggy")
 tm.physics.AddTexture("vehicles/RescueBoat.png", "Rescue Boat")
 tm.physics.AddTexture("vehicles/IbishuPigeon.png", "Ibishu Pigeon")
@@ -67,15 +69,17 @@ function onPlayerJoined(player)
     tm.os.Log("Player: "..playerId.. " | Player joined")
 
     tm.playerUI.AddSubtleMessageForPlayer(playerId, "Welcome to the game!", "To select a Vehicle press: N", 5)
-    tm.input.RegisterFunctionToKeyDownCallback(player.playerId, "toggleInventory","n")
+    tm.input.RegisterFunctionToKeyDownCallback(playerId, "toggleInventory","n")
+    tm.input.RegisterFunctionToKeyDownCallback(playerId, "toggleMap","m")
     tm.input.RegisterFunctionToKeyDownCallback(playerId, "inventorySelect","space")
     tm.input.RegisterFunctionToKeyDownCallback(playerId, "inventoryLeft","a")
     tm.input.RegisterFunctionToKeyDownCallback(playerId, "inventoryRight","d")
 
-    tm.players.SetBuilderEnabled(playerId, true)
+    tm.players.SetBuilderEnabled(playerId, false)
 
     playerDataTable[playerId] = {
-        hasUIopen = false,
+        hasInventoryOpen = false,
+        hasMapopen = false,
         currentUISelection = 1,
 
         currentMission = 0,
@@ -86,6 +90,43 @@ function onPlayerJoined(player)
 
 end
 tm.players.OnPlayerJoined.add(onPlayerJoined)
+
+
+
+            --|||||||||--
+            --   MAP   --
+            --|||||||||--
+
+function toggleMap(playerId)
+    local playerData = playerDataTable[playerId]
+
+    if tm.players.IsPlayerInSeat(playerId) then
+        tm.playerUI.AddSubtleMessageForPlayer(playerId, "Cant open Map", "Leave the vehicle first!", 2)
+        return
+    end
+
+    if playerData.hasInventoryOpen then
+        toggleInventory(playerId)
+    end
+
+    if playerData.hasMapopen then
+        tm.os.Log("Player: "..playerId.. " | Map closed")
+        playerData.hasMapopen = false
+
+        tm.players.DeactivateCamera(playerId, 0)
+        tm.players.RemoveCamera(playerId)
+        return
+    end
+
+    tm.os.Log("Player: "..playerId.. " | Map opened")
+    playerData.hasMapopen = true
+
+    tm.players.AddCamera(playerId, tm.vector3.Create(0, 1100, playerId * 100), tm.vector3.Create(1, 0, 0))
+    tm.players.ActivateCamera(playerId, 0)
+
+    tm.physics.SpawnCustomObject(tm.vector3.Create(8, 1100, playerId * 100),"","Map")
+
+end
 
             --|||||||||--
             --INVENTORY--
@@ -99,9 +140,13 @@ function toggleInventory(playerId)
         return
     end
 
-    if playerData.hasUIopen then
+    if playerData.hasMapopen then
+        toggleMap(playerId)
+    end
+
+    if playerData.hasInventoryOpen then
         tm.os.Log("Player: "..playerId.. " | Inventory closed")
-        playerData.hasUIopen = false
+        playerData.hasInventoryOpen = false
 
         tm.players.DespawnStructure("UIVehicle"..playerData.currentUISelection..playerId)
 
@@ -110,7 +155,7 @@ function toggleInventory(playerId)
         return
     end
     tm.os.Log("Player: "..playerId.. " | Inventory opened")
-    playerData.hasUIopen = true
+    playerData.hasInventoryOpen = true
 
     tm.playerUI.AddSubtleMessageForPlayer(playerId, "Inventory", "to Select a vehicle press space", 8)
     tm.playerUI.AddSubtleMessageForPlayer(playerId, "Inventory", "Use A and D to switch vehicles", 8)
@@ -127,7 +172,7 @@ end
 
 function inventoryLeft(playerId)
     local playerData = playerDataTable[playerId]
-    if not playerData.hasUIopen then
+    if not playerData.hasInventoryOpen then
         return
     end
 
@@ -146,7 +191,7 @@ end
 
 function inventoryRight(playerId)
     local playerData = playerDataTable[playerId]
-    if not playerData.hasUIopen then
+    if not playerData.hasInventoryOpen then
         return
     end
 
@@ -167,21 +212,24 @@ function inventorySelect(playerId)
     local playerData = playerDataTable[playerId]
     local inventory = playerData.inventory
 
-    if not playerData.hasUIopen then
+    if not playerData.hasInventoryOpen then
         return
     end
 
     tm.players.DespawnStructure("spawned"..playerData.currentUISelection..playerId)
 
     if tableContains(inventory, playerData.currentUISelection) then
-        tm.players.SpawnStructure(playerId, vehicles[playerData.currentUISelection].vehicleName, "spawned"..playerData.currentUISelection..playerId, tm.players.GetPlayerTransform(playerId).GetPosition(), tm.vector3.Create(0, 0, 0))
         toggleInventory(playerId)
+        tm.players.SpawnStructure(playerId, vehicles[playerData.currentUISelection].vehicleName, "spawned"..playerData.currentUISelection..playerId, tm.players.GetPlayerTransform(playerId).GetPosition(), tm.vector3.Create(0, 0, 0))
+        tm.players.PlacePlayerInSeat(playerId, "spawned"..playerData.currentUISelection..playerId)
+
         tm.os.Log("Player: "..playerId.. " | Selection spawned")
     else
         tm.playerUI.AddSubtleMessageForPlayer(playerId, "Buy this vehicle?", "This Vehicle costs: "..vehicles[playerData.currentUISelection].vehicleValue, 4)
         tm.playerUI.AddSubtleMessageForPlayer(playerId, "Not owned", "You dont own this vehicle!", 4)
     end
 end
+
 
             --|||||||||--
             --MISSIONS --
