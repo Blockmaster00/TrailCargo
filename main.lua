@@ -78,14 +78,16 @@ function onPlayerJoined(player)
     tm.players.SetBuilderEnabled(playerId, true)
 
     playerDataTable[playerId] = {
-        inventoryMessage = "",
+        inventoryMessage = {},
+        garage = "",
         hasInventoryOpen = false,
         hasMapopen = false,
+        map = "",
         currentUISelection = 1,
 
         currentMission = 0,
 
-        money = 100,
+        balance = 100,
         inventory = {1},
     }
 
@@ -114,6 +116,7 @@ function toggleMap(playerId)
         tm.os.Log("Player: "..playerId.. " | Map closed")
         playerData.hasMapopen = false
 
+        playerData.map.Despawn()
         tm.players.DeactivateCamera(playerId, 0)
         tm.players.RemoveCamera(playerId)
         return
@@ -125,8 +128,9 @@ function toggleMap(playerId)
     tm.players.AddCamera(playerId, tm.vector3.Create(0, 1100, playerId * 100), tm.vector3.Create(1, 0, 0))
     tm.players.ActivateCamera(playerId, 0)
 
-    tm.physics.SpawnCustomObject(tm.vector3.Create(8, 1100, playerId * 100),"","Map")
+    playerData.map = tm.physics.SpawnCustomObject(tm.vector3.Create(8, 1100, playerId * 100),"","Map")
 end
+
 
             --|||||||||--
             --INVENTORY--
@@ -149,8 +153,10 @@ function toggleInventory(playerId)
         tm.os.Log("Player: "..playerId.. " | Inventory closed")
         playerData.hasInventoryOpen = false
 
-        tm.playerUI.RemoveSubtleMessageForPlayer(playerId, playerData.inventoryMessage)
+        tm.playerUI.RemoveSubtleMessageForPlayer(playerId, playerData.inventoryMessage[1])
+        tm.playerUI.RemoveSubtleMessageForPlayer(playerId, playerData.inventoryMessage[2])
         tm.players.DespawnStructure("UIVehicle"..playerData.currentUISelection..playerId)
+        playerData.garage.Despawn()
 
         tm.players.DeactivateCamera(playerId, 0)
         tm.players.RemoveCamera(playerId)
@@ -160,10 +166,12 @@ function toggleInventory(playerId)
     playerData.hasInventoryOpen = true
 
     if tableContains(inventory,playerData.currentUISelection) then
-        playerData.inventoryMessage = tm.playerUI.AddSubtleMessageForPlayer(playerId, vehicles[playerData.currentUISelection].vehicleName, "owned", 100)
+        playerData.inventoryMessage[1] = tm.playerUI.AddSubtleMessageForPlayer(playerId, vehicles[playerData.currentUISelection].vehicleName, "owned", 100)
     else
-        playerData.inventoryMessage = tm.playerUI.AddSubtleMessageForPlayer(playerId, vehicles[playerData.currentUISelection].vehicleName, "Buy this vehicle for: "..vehicles[playerData.currentUISelection].vehicleValue.. "$?", 100)
+        playerData.inventoryMessage[1] = tm.playerUI.AddSubtleMessageForPlayer(playerId, vehicles[playerData.currentUISelection].vehicleName, "Buy this vehicle for: "..vehicles[playerData.currentUISelection].vehicleValue.. "$?", 100)
     end
+
+    playerData.inventoryMessage[2] = tm.playerUI.AddSubtleMessageForPlayer(playerId, "Current balance:", playerData.balance.."$", 100)
 
     tm.playerUI.AddSubtleMessageForPlayer(playerId, "Inventory", "Select a vehicle to spawn", 3)
 
@@ -171,14 +179,14 @@ function toggleInventory(playerId)
     tm.players.AddCamera(playerId, tm.vector3.Create(0, 1000, playerId * 100), tm.vector3.Create(1, 0, 0))
     tm.players.ActivateCamera(playerId, 0)
 
-    tm.physics.SpawnCustomObject(tm.vector3.Create(8, 998, playerId * 100),"","texture.png")            --Platform for Vehicles to spawn on (YET TO MODEL)
+    playerData.garage = tm.physics.SpawnCustomObject(tm.vector3.Create(8, 998, playerId * 100),"","texture.png")            --Platform for Vehicles to spawn on (YET TO MODEL)
     tm.players.SpawnStructure(playerId, vehicles[playerData.currentUISelection].vehicleName, "UIVehicle"..playerData.currentUISelection..playerId, tm.vector3.Create(8, 999, playerId * 100 - 2), tm.vector3.Create(0, 0, 0))
 
 end
 
 function inventoryLeft(playerId)
     local playerData = playerDataTable[playerId]
-    local inventory = playerData.inventory
+
     if not playerData.hasInventoryOpen then
         return
     end
@@ -193,19 +201,13 @@ function inventoryLeft(playerId)
     end
 
     tm.players.SpawnStructure(playerId, vehicles[playerData.currentUISelection].vehicleName, "UIVehicle"..playerData.currentUISelection..playerId, tm.vector3.Create(8, 999, playerId * 100 - 2), tm.vector3.Create(0, 0, 0))
-    tm.playerUI.SubtleMessageUpdateHeaderForPlayer(playerId, playerData.inventoryMessage, vehicles[playerData.currentUISelection].vehicleName)
-
-    if tableContains(inventory,playerData.currentUISelection) then
-        tm.playerUI.SubtleMessageUpdateMessageForPlayer(playerId, playerData.inventoryMessage, "owned")
-    else
-        tm.playerUI.SubtleMessageUpdateMessageForPlayer(playerId, playerData.inventoryMessage, "Buy this vehicle for: "..vehicles[playerData.currentUISelection].vehicleValue.. "$?")
-    end
+    updateInventoryMessage(playerId)
     tm.os.Log("Player: "..playerId.. " | Vehicle selected: "..vehicles[playerData.currentUISelection].vehicleName)
 end
 
 function inventoryRight(playerId)
     local playerData = playerDataTable[playerId]
-    local inventory = playerData.inventory
+
     if not playerData.hasInventoryOpen then
         return
     end
@@ -220,14 +222,26 @@ function inventoryRight(playerId)
     end
 
     tm.players.SpawnStructure(playerId, vehicles[playerData.currentUISelection].vehicleName, "UIVehicle"..playerData.currentUISelection..playerId, tm.vector3.Create(8, 999, playerId * 100 - 2), tm.vector3.Create(0, 0, 0))
-    tm.playerUI.SubtleMessageUpdateHeaderForPlayer(playerId, playerData.inventoryMessage, vehicles[playerData.currentUISelection].vehicleName)
+    updateInventoryMessage(playerId)
+    tm.os.Log("Player: "..playerId.. " | Vehicle selected: "..vehicles[playerData.currentUISelection].vehicleName)
+end
+
+function updateInventoryMessage(playerId)
+    local playerData = playerDataTable[playerId]
+    local inventory = playerData.inventory
+
+    if not playerData.hasInventoryOpen then
+        return
+    end
+
+    tm.playerUI.SubtleMessageUpdateHeaderForPlayer(playerId, playerData.inventoryMessage[1], vehicles[playerData.currentUISelection].vehicleName)
 
     if tableContains(inventory,playerData.currentUISelection) then
-        tm.playerUI.SubtleMessageUpdateMessageForPlayer(playerId, playerData.inventoryMessage, "owned")
+        tm.playerUI.SubtleMessageUpdateMessageForPlayer(playerId, playerData.inventoryMessage[1], "owned")
     else
-        tm.playerUI.SubtleMessageUpdateMessageForPlayer(playerId, playerData.inventoryMessage, "Buy this vehicle for: "..vehicles[playerData.currentUISelection].vehicleValue.. "$?")
+        tm.playerUI.SubtleMessageUpdateMessageForPlayer(playerId, playerData.inventoryMessage[1], "Buy this vehicle for: "..vehicles[playerData.currentUISelection].vehicleValue.. "$?")
     end
-    tm.os.Log("Player: "..playerId.. " | Vehicle selected: "..vehicles[playerData.currentUISelection].vehicleName)
+    tm.playerUI.SubtleMessageUpdateMessageForPlayer(playerId, playerData.inventoryMessage[2], playerData.balance.."$")
 end
 
 function inventorySelect(playerId)
@@ -240,15 +254,24 @@ function inventorySelect(playerId)
 
     tm.players.DespawnStructure("spawned"..playerData.currentUISelection..playerId)
 
-    if tableContains(inventory, playerData.currentUISelection) then
+    if tableContains(inventory, playerData.currentUISelection) then     --Check if player owns the vehicle
         toggleInventory(playerId)
         tm.players.SpawnStructure(playerId, vehicles[playerData.currentUISelection].vehicleName, "spawned"..playerData.currentUISelection..playerId, tm.players.GetPlayerTransform(playerId).GetPosition(), tm.vector3.Create(0, 0, 0))
         tm.players.PlacePlayerInSeat(playerId, "spawned"..playerData.currentUISelection..playerId)
 
         tm.os.Log("Player: "..playerId.. " | Selection spawned")
     else
-        tm.playerUI.AddSubtleMessageForPlayer(playerId, "Buy this vehicle?", "This Vehicle costs: "..vehicles[playerData.currentUISelection].vehicleValue, 4)
-        tm.playerUI.AddSubtleMessageForPlayer(playerId, "Not owned", "You dont own this vehicle!", 4)
+
+        if playerData.balance >= vehicles[playerData.currentUISelection].vehicleValue then  --Check if player has enough money
+            playerData.balance = playerData.balance - vehicles[playerData.currentUISelection].vehicleValue
+            table.insert(inventory, playerData.currentUISelection)
+            tm.os.Log("Player: "..playerId.. " | Vehicle bought: "..vehicles[playerData.currentUISelection].vehicleName)
+            tm.playerUI.AddSubtleMessageForPlayer(playerId, "Vehicle bought", "You bought: "..vehicles[playerData.currentUISelection].vehicleName, 4)
+            updateInventoryMessage(playerId)
+        else
+            tm.os.Log("Player: "..playerId.. " | Not enough money")
+            tm.playerUI.AddSubtleMessageForPlayer(playerId, "Not enough money", "Insufficient funds", 4)
+        end
     end
 end
 
