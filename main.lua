@@ -8,16 +8,26 @@ tm.physics.AddTexture("vehicles/RescueBoat.png", "Rescue Boat")
 tm.physics.AddTexture("vehicles/IbishuPigeon.png", "Ibishu Pigeon")
 tm.physics.AddTexture("vehicles/HeavyTruck.png", "Heavy Truck")
 
+local playerSaves_path = "playerSaves.json"
+
 local vehicle_data_path = "vehicles.json"
 local vehicles = json.parse(tm.os.ReadAllText_Static(vehicle_data_path))
-
 
 local mission_data_path = "missions.json"
 local missionDataTable = json.parse(tm.os.ReadAllText_Static(mission_data_path))
 
+local savePlayerDataTimer = 100
+local lastPlayerDataSave = 100
+
 
 function update()
     local playerList = tm.players.CurrentPlayers()
+
+    if tm.os.GetTime() - lastPlayerDataSave > savePlayerDataTimer then
+        lastPlayerDataSave = tm.os.GetTime()
+        savePlayerData()
+    end
+
     for key, player in pairs(playerList) do
         playerUpdate(player.playerId)
     end
@@ -54,25 +64,35 @@ function onPlayerJoined(player)
 
     tm.players.SetBuilderEnabled(playerId, true)
 
-    playerDataTable[playerId] = {
-        chatOpen = false,
+    local playerSaves = json.parse(tm.os.ReadAllText_Dynamic(playerSaves_path))
 
-        inventoryMessage = {},
-        garage = "",                --Garage object
-        hasInventoryOpen = false,
-        hasMapOpen = false,
-        map = "",                   --Map object
-        currentUISelection = 1,
+    local playerName = tm.players.GetPlayerName(playerId)
 
-        activeMission = 0,
-        interactionMessage = "",   -- Subtle message for Interaction display
-        interactionProximity = 0,
-        chirpoDialogue = 0,
-        chirpoMessage = "",         --Subtle message for Chirpo Dialogue
+    if playerSaves[playerName] ~= nil then
+        playerDataTable[playerId] = playerSaves[playerName]
+    else
+        playerDataTable[playerId] = {
+            chatOpen = false,
 
-        balance = 1000,
-        inventory = {1},
-    }
+            inventoryMessage = {},
+            garage = "",                --Garage object
+            hasInventoryOpen = false,
+            hasMapOpen = false,
+            map = "",                   --Map object
+            currentUISelection = 1,
+
+            activeMission = 0,
+            completedMissions = {},
+
+            interactionMessage = "",   -- Subtle message for Interaction display
+            interactionProximity = 0,
+            chirpoDialogue = 0,
+            chirpoMessage = "",         --Subtle message for Chirpo Dialogue
+
+            balance = 1000,
+            inventory = {1},
+        }
+    end
 
 end
 tm.players.OnPlayerJoined.add(onPlayerJoined)
@@ -149,6 +169,8 @@ function toggleInventory(playerId)
         tm.playerUI.RemoveSubtleMessageForPlayer(playerId, playerData.inventoryMessage[2])
         tm.players.DespawnStructure("UIVehicle"..playerData.currentUISelection..playerId)
         playerData.garage.Despawn()
+
+        playerData.inventoryMessage = {}
 
         tm.players.DeactivateCamera(playerId, 0)
         tm.players.RemoveCamera(playerId)
@@ -291,7 +313,7 @@ function enterChirpoProximity(playerId)
 
     for key, mission in pairs(missionDataTable) do
         local chirpoPosition = tm.vector3.Create(mission.chirpoPosition)
-        if (tm.players.GetPlayerTransform(playerId).GetPosition() - chirpoPosition).Magnitude() < 10 then
+        if (tm.players.GetPlayerTransform(playerId).GetPosition() - chirpoPosition).Magnitude() < 10 then       --Check if player is in proximity of Chirpo
             playerData.interactionProximity = mission.missionId
             playerData.interactionMessage = tm.playerUI.AddSubtleMessageForPlayer(playerId, "Mission", "Press E to talk to "..mission.chirpoName, 100)
         end
@@ -304,6 +326,7 @@ function leaveChirpoProximity(playerId)
     playerData.interactionProximity = 0
     playerData.chirpoDialogue = 0
     tm.playerUI.RemoveSubtleMessageForPlayer(playerId, playerData.interactionMessage)
+    playerData.interactionMessage = ""
 end
 
 function prepareChirpos()
@@ -312,10 +335,10 @@ function prepareChirpos()
         local chirpoPosition = tm.vector3.Create(mission.chirpoPosition)
         local chirpoRotation = tm.vector3.Create(mission.chirpoRotation)
 
-        local chirpo = tm.physics.SpawnObject(chirpoPosition, chirpos[mission.chirpoColor])
+        local chirpo = tm.physics.SpawnObject(chirpoPosition, chirpos[mission.chirpoColor])             --Chirpo Object
         chirpo.GetTransform().SetRotation(chirpoRotation)
 
-        local chirpoTriggerBox = tm.physics.SpawnBoxTrigger(chirpoPosition, tm.vector3.Create(7, 7, 7))
+        local chirpoTriggerBox = tm.physics.SpawnBoxTrigger(chirpoPosition, tm.vector3.Create(7, 7, 7)) --Trigger Box for Chirpo Proximity
         tm.physics.RegisterFunctionToCollisionEnterCallback(chirpoTriggerBox, "enterChirpoProximity")
         tm.physics.RegisterFunctionToCollisionExitCallback(chirpoTriggerBox, "leaveChirpoProximity")
         chirpoTriggerBox.SetIsVisible(false)
@@ -333,23 +356,31 @@ function interact(playerId)
     if playerData.interactionProximity ~= 0 then
         local missionId = playerData.interactionProximity
         local chirpoDialogue = missionDataTable[missionId].chirpoDialogue
-        if playerData.chirpoDialogue == 0 then
+
+        if tableContains(playerData.completedMissions, missionId ) then                         --Check if player already completed the mission
+            tm.os.Log("Player: "..playerId.. " | Interaction started with Chirpo: "..missionId)
+            tm.playerUI.AddSubtleMessageForPlayer(playerId, missionDataTable[missionId].chirpoName, "Thank you for helping me already", 5)
+            playerData.chirpoMessage = ""
+            return
+        end
+        if playerData.chirpoDialogue == 0 then                                                  --Check if player is starting the dialogue
             tm.os.Log("Player: "..playerId.. " | Interaction started with Chirpo: "..missionId)
             playerData.chirpoDialogue = playerData.chirpoDialogue + 1
             playerData.chirpoMessage = tm.playerUI.AddSubtleMessageForPlayer(playerId, missionDataTable[missionId].chirpoName, chirpoDialogue[playerData.chirpoDialogue], 10)
         else
-            if playerData.chirpoDialogue < #chirpoDialogue then
+            if playerData.chirpoDialogue < #chirpoDialogue then                                 --Check if dialogue is not finished
                 tm.os.Log("Player: "..playerId.. " | Interaction continued with Chirpo: "..missionId)
             playerData.chirpoDialogue = playerData.chirpoDialogue + 1
             tm.playerUI.SubtleMessageUpdateMessageForPlayer(playerId, playerData.chirpoMessage, chirpoDialogue[playerData.chirpoDialogue])
             else
-                if playerData.chirpoDialogue == #chirpoDialogue then
+                if playerData.chirpoDialogue == #chirpoDialogue then                            --Check if dialogue is finished
                     tm.playerUI.SubtleMessageUpdateMessageForPlayer(playerId, playerData.chirpoMessage, "I will reward you with "..missionDataTable[missionId].missionReward.."$")
                     playerData.chirpoDialogue = playerData.chirpoDialogue + 1
                 else
                     tm.os.Log("Player: "..playerId.. " | Interaction ended with Chirpo: "..missionId)
                     playerData.chirpoDialogue = 0
                     tm.playerUI.RemoveSubtleMessageForPlayer(playerId, playerData.chirpoMessage)
+                    playerData.chirpoMessage = ""
 
                     startMission(playerId, missionId)
                 end
@@ -362,7 +393,7 @@ end
 function startMission(playerId, missionId)
     local playerData = playerDataTable[playerId]
 
-    if playerData.activeMission == 0 then
+    if playerData.activeMission == 0 then                                           --Check if player is not already doing a mission_data_path
         playerData.activeMission = missionId
         tm.os.Log("Player: "..playerId.. " | Mission started: "..missionId)
         tm.playerUI.AddSubtleMessageForPlayer(playerId, "Mission started", "Complete the delivery", 5)
@@ -376,6 +407,7 @@ function missionCompleted(playerId, mission)
     local playerData = playerDataTable[playerId]
 
     playerData.balance = playerData.balance + mission.missionReward
+    table.insert(playerData.completedMissions, playerData.activeMission)            --Add mission to completed missions
     playerData.activeMission = 0
     tm.os.Log("Player: "..playerId.. " | Mission completed: "..mission.missionId)
     tm.playerUI.AddSubtleMessageForPlayer(playerId, "Mission completed", "You earned: "..mission.missionReward.."$", 5)
@@ -385,6 +417,19 @@ end
             --|||||||||--
             --   MISC  --
             --|||||||||--
+
+function savePlayerData()
+    local playerSaves = json.parse(tm.os.ReadAllText_Dynamic(playerSaves_path))
+    local playerList = tm.players.CurrentPlayers()
+
+    for key, player in pairs(playerList) do
+        local playerName = tm.players.GetPlayerName(player.playerId)
+        playerSaves[playerName] = playerDataTable[player.playerId]
+    end
+    tm.os.WriteAllText_Dynamic(playerSaves_path, json.serialize(playerSaves))
+    tm.playerUI.AddSubtleMessageForAllPlayers("Player data saved", "Player data saved", 5)
+    tm.os.Log("Player data saved")
+end
 
 function stopAudio(playerId)
     local playerObject = tm.players.GetPlayerGameObject(playerId)
