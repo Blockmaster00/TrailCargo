@@ -1,5 +1,5 @@
 local playerDataTable = {}
-local doDaylightCycle = 1
+local sessionPlayerData = {}
 
 tm.physics.AddTexture("assets/map.png", "Map")
 
@@ -72,27 +72,27 @@ function onPlayerJoined(player)
         playerDataTable[playerId] = playerSaves[playerName]
     else
         playerDataTable[playerId] = {
-            chatOpen = false,
-
-            inventoryMessage = {},
-            garage = "",                --Garage object
-            hasInventoryOpen = false,
-            hasMapOpen = false,
-            map = "",                   --Map object
-            currentUISelection = 1,
 
             activeMission = 0,
             completedMissions = {},
-
-            interactionMessage = "",   -- Subtle message for Interaction display
-            interactionProximity = 0,
-            chirpoDialogue = 0,
-            chirpoMessage = "",         --Subtle message for Chirpo Dialogue
 
             balance = 1000,
             inventory = {1},
         }
     end
+    sessionPlayerData[playerId] = {
+        chatOpen = false,
+        inventoryMessage = {},
+        hasInventoryOpen = false,
+        hasMapOpen = false,
+        map = "",                   --Map object
+        garage = "",                --Garage object
+        currentUISelection = 1,
+        interactionMessage = "",   -- Subtle message for Interaction display
+        interactionProximity = 0,
+        chirpoDialogue = 0,
+        chirpoMessage = "",         --Subtle message for Chirpo Dialogue
+    }
 
 end
 tm.players.OnPlayerJoined.add(onPlayerJoined)
@@ -104,9 +104,9 @@ tm.players.OnPlayerJoined.add(onPlayerJoined)
             --|||||||||--
 
 function toggleMap(playerId)
-    local playerData = playerDataTable[playerId]
+    local sessionData = sessionPlayerData[playerId]
 
-    if playerData.chatOpen then
+    if sessionData.chatOpen then
         return
     end
 
@@ -115,27 +115,27 @@ function toggleMap(playerId)
         return
     end
 
-    if playerData.hasInventoryOpen then
+    if sessionData.hasInventoryOpen then
         toggleInventory(playerId)
     end
 
-    if playerData.hasMapOpen then
+    if sessionData.hasMapOpen then
         tm.os.Log("Player: "..playerId.. " | Map closed")
-        playerData.hasMapOpen = false
+        sessionData.hasMapOpen = false
 
-        playerData.map.Despawn()
+        sessionData.map.Despawn()
         tm.players.DeactivateCamera(playerId, 0)
         tm.players.RemoveCamera(playerId)
         return
     end
 
     tm.os.Log("Player: "..playerId.. " | Map opened")
-    playerData.hasMapOpen = true
+    sessionData.hasMapOpen = true
 
     tm.players.AddCamera(playerId, tm.vector3.Create(0, 1100, playerId * 100), tm.vector3.Create(1, 0, 0))
     tm.players.ActivateCamera(playerId, 0)
 
-    playerData.map = tm.physics.SpawnCustomObject(tm.vector3.Create(8, 1100, playerId * 100),"","Map")
+    sessionData.map = tm.physics.SpawnCustomObject(tm.vector3.Create(8, 1100, playerId * 100),"","Map")
 end
 
 
@@ -145,9 +145,10 @@ end
 
 function toggleInventory(playerId)
     local playerData = playerDataTable[playerId]
+    local sessionData = sessionPlayerData[playerId]
     local inventory = playerData.inventory
 
-    if playerData.chatOpen then
+    if sessionData.chatOpen then
         return
     end
 
@@ -156,21 +157,21 @@ function toggleInventory(playerId)
         return
     end
 
-    if playerData.hasMapOpen then
+    if sessionData.hasMapOpen then
         toggleMap(playerId)
     end
 
-    if playerData.hasInventoryOpen then
+    if sessionData.hasInventoryOpen then
         tm.os.Log("Player: "..playerId.. " | Inventory closed")
         playAudio(playerId, "HideHologram")
-        playerData.hasInventoryOpen = false
+        sessionData.hasInventoryOpen = false
 
-        tm.playerUI.RemoveSubtleMessageForPlayer(playerId, playerData.inventoryMessage[1])
-        tm.playerUI.RemoveSubtleMessageForPlayer(playerId, playerData.inventoryMessage[2])
-        tm.players.DespawnStructure("UIVehicle"..playerData.currentUISelection..playerId)
-        playerData.garage.Despawn()
+        tm.playerUI.RemoveSubtleMessageForPlayer(playerId, sessionData.inventoryMessage[1])
+        tm.playerUI.RemoveSubtleMessageForPlayer(playerId, sessionData.inventoryMessage[2])
+        tm.players.DespawnStructure("UIVehicle"..sessionData.currentUISelection..playerId)
+        sessionData.garage.Despawn()
 
-        playerData.inventoryMessage = {}
+        sessionData.inventoryMessage = {}
 
         tm.players.DeactivateCamera(playerId, 0)
         tm.players.RemoveCamera(playerId)
@@ -178,15 +179,15 @@ function toggleInventory(playerId)
     end
     tm.os.Log("Player: "..playerId.. " | Inventory opened")
     playAudio(playerId, "ShowHologram")
-    playerData.hasInventoryOpen = true
+    sessionData.hasInventoryOpen = true
 
-    if tableContains(inventory,playerData.currentUISelection) then
-        playerData.inventoryMessage[1] = tm.playerUI.AddSubtleMessageForPlayer(playerId, vehicles[playerData.currentUISelection].vehicleName, "owned", 100)
+    if tableContains(inventory, sessionData.currentUISelection) then
+        sessionData.inventoryMessage[1] = tm.playerUI.AddSubtleMessageForPlayer(playerId, vehicles[sessionData.currentUISelection].vehicleName, "owned", 100)
     else
-        playerData.inventoryMessage[1] = tm.playerUI.AddSubtleMessageForPlayer(playerId, vehicles[playerData.currentUISelection].vehicleName, "Buy this vehicle for: "..vehicles[playerData.currentUISelection].vehicleValue.. "$?", 100)
+        sessionData.inventoryMessage[1] = tm.playerUI.AddSubtleMessageForPlayer(playerId, vehicles[sessionData.currentUISelection].vehicleName, "Buy this vehicle for: "..vehicles[sessionData.currentUISelection].vehicleValue.. "$?", 100)
     end
 
-    playerData.inventoryMessage[2] = tm.playerUI.AddSubtleMessageForPlayer(playerId, "Current balance:", playerData.balance.."$", 100)
+    sessionData.inventoryMessage[2] = tm.playerUI.AddSubtleMessageForPlayer(playerId, "Current balance:", playerData.balance.."$", 100)
 
     tm.playerUI.AddSubtleMessageForPlayer(playerId, "Inventory", "Select a vehicle to spawn", 3)
 
@@ -194,106 +195,108 @@ function toggleInventory(playerId)
     tm.players.AddCamera(playerId, tm.vector3.Create(0, 1000, playerId * 100), tm.vector3.Create(1, 0, 0))
     tm.players.ActivateCamera(playerId, 0)
 
-    playerData.garage = tm.physics.SpawnCustomObject(tm.vector3.Create(8, 998, playerId * 100),"","texture.png")            --Platform for Vehicles to spawn on (YET TO MODEL)
-    tm.players.SpawnStructure(playerId, vehicles[playerData.currentUISelection].vehicleName, "UIVehicle"..playerData.currentUISelection..playerId, tm.vector3.Create(8, 999, playerId * 100 - 2), tm.vector3.Create(0, 0, 0))
+    sessionData.garage = tm.physics.SpawnCustomObject(tm.vector3.Create(8, 998, playerId * 100),"","texture.png")            --Platform for Vehicles to spawn on (YET TO MODEL)
+    tm.players.SpawnStructure(playerId, vehicles[sessionData.currentUISelection].vehicleName, "UIVehicle"..sessionData.currentUISelection..playerId, tm.vector3.Create(8, 999, playerId * 100 - 2), tm.vector3.Create(0, 0, 0))
 
 end
 
 function inventoryLeft(playerId)
-    local playerData = playerDataTable[playerId]
+    local sessionData = sessionPlayerData[playerId]
 
-    if playerData.chatOpen then
+    if sessionData.chatOpen then
         return
     end
 
-    if not playerData.hasInventoryOpen then
+    if not sessionData.hasInventoryOpen then
         return
     end
 
     tm.os.Log("Player: "..playerId.. " | Inventory left")
 
-    tm.players.DespawnStructure("UIVehicle"..playerData.currentUISelection..playerId)
+    tm.players.DespawnStructure("UIVehicle"..sessionData.currentUISelection..playerId)
 
-    playerData.currentUISelection = playerData.currentUISelection - 1
-    if playerData.currentUISelection < 1 then
-        playerData.currentUISelection = #vehicles
+    sessionData.currentUISelection = sessionData.currentUISelection - 1
+    if sessionData.currentUISelection < 1 then
+        sessionData.currentUISelection = #vehicles
     end
 
-    tm.players.SpawnStructure(playerId, vehicles[playerData.currentUISelection].vehicleName, "UIVehicle"..playerData.currentUISelection..playerId, tm.vector3.Create(8, 999, playerId * 100 - 2), tm.vector3.Create(0, 0, 0))
+    tm.players.SpawnStructure(playerId, vehicles[sessionData.currentUISelection].vehicleName, "UIVehicle"..sessionData.currentUISelection..playerId, tm.vector3.Create(8, 999, playerId * 100 - 2), tm.vector3.Create(0, 0, 0))
     updateInventoryMessage(playerId)
-    tm.os.Log("Player: "..playerId.. " | Vehicle selected: "..vehicles[playerData.currentUISelection].vehicleName)
+    tm.os.Log("Player: "..playerId.. " | Vehicle selected: "..vehicles[sessionData.currentUISelection].vehicleName)
 end
 
 function inventoryRight(playerId)
-    local playerData = playerDataTable[playerId]
+    local sessionData = sessionPlayerData[playerId]
 
-    if playerData.chatOpen then
+    if sessionData.chatOpen then
         return
     end
 
-    if not playerData.hasInventoryOpen then
+    if not sessionData.hasInventoryOpen then
         return
     end
 
     tm.os.Log("Player: "..playerId.. " | Inventory right")
 
-    tm.players.DespawnStructure("UIVehicle"..playerData.currentUISelection..playerId)
+    tm.players.DespawnStructure("UIVehicle"..sessionData.currentUISelection..playerId)
 
-    playerData.currentUISelection = playerData.currentUISelection + 1
-    if playerData.currentUISelection > #vehicles then
-        playerData.currentUISelection = 1
+    sessionData.currentUISelection = sessionData.currentUISelection + 1
+    if sessionData.currentUISelection > #vehicles then
+        sessionData.currentUISelection = 1
     end
 
-    tm.players.SpawnStructure(playerId, vehicles[playerData.currentUISelection].vehicleName, "UIVehicle"..playerData.currentUISelection..playerId, tm.vector3.Create(8, 999, playerId * 100 - 2), tm.vector3.Create(0, 0, 0))
+    tm.players.SpawnStructure(playerId, vehicles[sessionData.currentUISelection].vehicleName, "UIVehicle"..sessionData.currentUISelection..playerId, tm.vector3.Create(8, 999, playerId * 100 - 2), tm.vector3.Create(0, 0, 0))
     updateInventoryMessage(playerId)
-    tm.os.Log("Player: "..playerId.. " | Vehicle selected: "..vehicles[playerData.currentUISelection].vehicleName)
+    tm.os.Log("Player: "..playerId.. " | Vehicle selected: "..vehicles[sessionData.currentUISelection].vehicleName)
 end
 
 function updateInventoryMessage(playerId)
     local playerData = playerDataTable[playerId]
+    local sessionData = sessionPlayerData[playerId]
     local inventory = playerData.inventory
 
-    if not playerData.hasInventoryOpen then
+    if not sessionData.hasInventoryOpen then
         return
     end
 
-    tm.playerUI.SubtleMessageUpdateHeaderForPlayer(playerId, playerData.inventoryMessage[1], vehicles[playerData.currentUISelection].vehicleName)
+    tm.playerUI.SubtleMessageUpdateHeaderForPlayer(playerId, sessionData.inventoryMessage[1], vehicles[sessionData.currentUISelection].vehicleName)
 
-    if tableContains(inventory,playerData.currentUISelection) then
-        tm.playerUI.SubtleMessageUpdateMessageForPlayer(playerId, playerData.inventoryMessage[1], "owned")
+    if tableContains(inventory,sessionData.currentUISelection) then
+        tm.playerUI.SubtleMessageUpdateMessageForPlayer(playerId, sessionData.inventoryMessage[1], "owned")
     else
-        tm.playerUI.SubtleMessageUpdateMessageForPlayer(playerId, playerData.inventoryMessage[1], "Buy this vehicle for: "..vehicles[playerData.currentUISelection].vehicleValue.. "$?")
+        tm.playerUI.SubtleMessageUpdateMessageForPlayer(playerId, sessionData.inventoryMessage[1], "Buy this vehicle for: "..vehicles[sessionData.currentUISelection].vehicleValue.. "$?")
     end
-    tm.playerUI.SubtleMessageUpdateMessageForPlayer(playerId, playerData.inventoryMessage[2], playerData.balance.."$")
+    tm.playerUI.SubtleMessageUpdateMessageForPlayer(playerId, sessionData.inventoryMessage[2], playerData.balance.."$")
 end
 
 function inventorySelect(playerId)
     local playerData = playerDataTable[playerId]
+    local sessionData = sessionPlayerData[playerId]
     local inventory = playerData.inventory
 
-    if playerData.chatOpen then
+    if sessionData.chatOpen then
         return
     end
 
-    if not playerData.hasInventoryOpen then
+    if not sessionData.hasInventoryOpen then
         return
     end
 
-    tm.players.DespawnStructure("spawned"..playerData.currentUISelection..playerId)
+    tm.players.DespawnStructure("spawned"..sessionData.currentUISelection..playerId)
 
-    if tableContains(inventory, playerData.currentUISelection) then     --Check if player owns the vehicle
+    if tableContains(inventory, sessionData.currentUISelection) then     --Check if player owns the vehicle
         toggleInventory(playerId)
-        tm.players.SpawnStructure(playerId, vehicles[playerData.currentUISelection].vehicleName, "spawned"..playerData.currentUISelection..playerId, tm.players.GetPlayerTransform(playerId).GetPosition(), tm.vector3.Create(0, 0, 0))
-        tm.players.PlacePlayerInSeat(playerId, "spawned"..playerData.currentUISelection..playerId)
+        tm.players.SpawnStructure(playerId, vehicles[sessionData.currentUISelection].vehicleName, "spawned"..sessionData.currentUISelection..playerId, tm.players.GetPlayerTransform(playerId).GetPosition(), tm.vector3.Create(0, 0, 0))
+        tm.players.PlacePlayerInSeat(playerId, "spawned"..sessionData.currentUISelection..playerId)
         playAudio(playerId, "UI_Rally_BlockUnlock")
         tm.os.Log("Player: "..playerId.. " | Selection spawned")
     else
 
-        if playerData.balance >= vehicles[playerData.currentUISelection].vehicleValue then  --Check if player has enough money
-            playerData.balance = playerData.balance - vehicles[playerData.currentUISelection].vehicleValue
-            table.insert(inventory, playerData.currentUISelection)
-            tm.os.Log("Player: "..playerId.. " | Vehicle bought: "..vehicles[playerData.currentUISelection].vehicleName)
-            tm.playerUI.AddSubtleMessageForPlayer(playerId, "Vehicle bought", "You bought: "..vehicles[playerData.currentUISelection].vehicleName, 4)
+        if playerData.balance >= vehicles[sessionData.currentUISelection].vehicleValue then  --Check if player has enough money
+            playerData.balance = playerData.balance - vehicles[sessionData.currentUISelection].vehicleValue
+            table.insert(inventory, sessionData.currentUISelection)
+            tm.os.Log("Player: "..playerId.. " | Vehicle bought: "..vehicles[sessionData.currentUISelection].vehicleName)
+            tm.playerUI.AddSubtleMessageForPlayer(playerId, "Vehicle bought", "You bought: "..vehicles[sessionData.currentUISelection].vehicleName, 4)
             playAudio(playerId, "Play_AVI_Cinematic_AncientWpnSlice_Awarded_01")
             updateInventoryMessage(playerId)
         else
@@ -309,24 +312,24 @@ end
             --|||||||||--
 
 function enterChirpoProximity(playerId)
-    local playerData = playerDataTable[playerId]
+    local sessionData = sessionPlayerData[playerId]
 
     for key, mission in pairs(missionDataTable) do
         local chirpoPosition = tm.vector3.Create(mission.chirpoPosition)
         if (tm.players.GetPlayerTransform(playerId).GetPosition() - chirpoPosition).Magnitude() < 10 then       --Check if player is in proximity of Chirpo
-            playerData.interactionProximity = mission.missionId
-            playerData.interactionMessage = tm.playerUI.AddSubtleMessageForPlayer(playerId, "Mission", "Press E to talk to "..mission.chirpoName, 100)
+            sessionData.interactionProximity = mission.missionId
+            sessionData.interactionMessage = tm.playerUI.AddSubtleMessageForPlayer(playerId, "Mission", "Press E to talk to "..mission.chirpoName, 100)
         end
     end
 end
 
 function leaveChirpoProximity(playerId)
-    local playerData = playerDataTable[playerId]
+    local sessionData = sessionPlayerData[playerId]
 
-    playerData.interactionProximity = 0
-    playerData.chirpoDialogue = 0
-    tm.playerUI.RemoveSubtleMessageForPlayer(playerId, playerData.interactionMessage)
-    playerData.interactionMessage = ""
+    sessionData.interactionProximity = 0
+    sessionData.chirpoDialogue = 0
+    tm.playerUI.RemoveSubtleMessageForPlayer(playerId, sessionData.interactionMessage)
+    sessionData.interactionMessage = ""
 end
 
 function prepareChirpos()
@@ -348,43 +351,43 @@ end
 
 function interact(playerId)
     local playerData = playerDataTable[playerId]
+    local sessionData = sessionPlayerData[playerId]
 
-    if playerData.chatOpen then
+    if sessionData.chatOpen then
         return
     end
 
-    if playerData.interactionProximity ~= 0 then
-        local missionId = playerData.interactionProximity
+    if sessionData.interactionProximity ~= 0 then
+        local missionId = sessionData.interactionProximity
         local chirpoDialogue = missionDataTable[missionId].chirpoDialogue
 
         if tableContains(playerData.completedMissions, missionId ) then                         --Check if player already completed the mission
             tm.os.Log("Player: "..playerId.. " | Interaction started with Chirpo: "..missionId)
             tm.playerUI.AddSubtleMessageForPlayer(playerId, missionDataTable[missionId].chirpoName, "Thank you for helping me already", 5)
-            playerData.chirpoMessage = ""
+            sessionData.chirpoMessage = ""
             return
         end
-        if playerData.chirpoDialogue == 0 then                                                  --Check if player is starting the dialogue
+        if sessionData.chirpoDialogue == 0 then                                                  --Check if player is starting the dialogue
             tm.os.Log("Player: "..playerId.. " | Interaction started with Chirpo: "..missionId)
-            playerData.chirpoDialogue = playerData.chirpoDialogue + 1
-            playerData.chirpoMessage = tm.playerUI.AddSubtleMessageForPlayer(playerId, missionDataTable[missionId].chirpoName, chirpoDialogue[playerData.chirpoDialogue], 10)
+            sessionData.chirpoDialogue = sessionData.chirpoDialogue + 1
+            sessionData.chirpoMessage = tm.playerUI.AddSubtleMessageForPlayer(playerId, missionDataTable[missionId].chirpoName, chirpoDialogue[sessionData.chirpoDialogue], 10)
         else
-            if playerData.chirpoDialogue < #chirpoDialogue then                                 --Check if dialogue is not finished
+            if sessionData.chirpoDialogue < #chirpoDialogue then                                 --Check if dialogue is not finished
                 tm.os.Log("Player: "..playerId.. " | Interaction continued with Chirpo: "..missionId)
-            playerData.chirpoDialogue = playerData.chirpoDialogue + 1
-            tm.playerUI.SubtleMessageUpdateMessageForPlayer(playerId, playerData.chirpoMessage, chirpoDialogue[playerData.chirpoDialogue])
+            sessionData.chirpoDialogue = sessionData.chirpoDialogue + 1
+            tm.playerUI.SubtleMessageUpdateMessageForPlayer(playerId, sessionData.chirpoMessage, chirpoDialogue[sessionData.chirpoDialogue])
             else
-                if playerData.chirpoDialogue == #chirpoDialogue then                            --Check if dialogue is finished
-                    tm.playerUI.SubtleMessageUpdateMessageForPlayer(playerId, playerData.chirpoMessage, "I will reward you with "..missionDataTable[missionId].missionReward.."$")
-                    playerData.chirpoDialogue = playerData.chirpoDialogue + 1
+                if sessionData.chirpoDialogue == #chirpoDialogue then                            --Check if dialogue is finished
+                    tm.playerUI.SubtleMessageUpdateMessageForPlayer(playerId, sessionData.chirpoMessage, "I will reward you with "..missionDataTable[missionId].missionReward.."$")
+                    sessionData.chirpoDialogue = sessionData.chirpoDialogue + 1
                 else
                     tm.os.Log("Player: "..playerId.. " | Interaction ended with Chirpo: "..missionId)
-                    playerData.chirpoDialogue = 0
-                    tm.playerUI.RemoveSubtleMessageForPlayer(playerId, playerData.chirpoMessage)
-                    playerData.chirpoMessage = ""
+                    sessionData.chirpoDialogue = 0
+                    tm.playerUI.RemoveSubtleMessageForPlayer(playerId, sessionData.chirpoMessage)
+                    sessionData.chirpoMessage = ""
 
                     startMission(playerId, missionId)
                 end
-
             end
         end
     end
@@ -442,9 +445,9 @@ function playAudio(playerId, audio)
 end
 
 function toggleChat(playerId)
-    local playerData = playerDataTable[playerId]
+    local sessionData = sessionPlayerData[playerId]
 
-    playerData.chatOpen = not playerData.chatOpen
+    sessionData.chatOpen = not sessionData.chatOpen
 end
 
 function getMass(ModStructure)

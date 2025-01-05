@@ -1,27 +1,11 @@
 {
     "Blockhampter":{
-        "chatOpen":false,
-        "inventoryMessage":[
-"15a79629-440a-44c7-b5cf-32931ea45aa1",
-"b166169a-f426-4dc5-882c-044753106e1c"]
-,
-        "hasInventoryOpen":false,
-        "hasMapOpen":false,
-        "map":"",
-        "currentUISelection":1,
         "activeMission":0,
-        "completedMissions":[
-1]
-,
-        "interactionMessage":"47cb21f5-6306-457e-84c9-8481959c948b",
-        "interactionProximity":0,
-        "chirpoDialogue":0,
-        "chirpoMessage":"e24c39db-3b7d-46d4-bc5a-fd227bdaf884",
-        "balance":950,
+        "completedMissions":{
+        },
+        "balance":1000,
         "inventory":[
-1,
-2,
-3]
+1]
 
     }
 }
