@@ -1,0 +1,38 @@
+[
+    {
+        "missionId": 1,
+        "missionName": "Mission 1",
+        "missionDescription": "This is mission 1",
+        "chirpoPosition": "-168, 274, 365",
+        "chirpoRotation": "0, 312, 0",
+        "chirpoName": "Tim",
+        "chirpoColor": 1,
+        "chirpoDialogue": ["Hello there!", "I need your help!", "I want to send a letter to Timmy", "Can you please deliver it?"],
+        "missionCompletionPosition": "-205,  247, 186",
+        "missionReward": 100
+    },
+    {
+        "missionId": 2,
+        "missionName": "Mission 2",
+        "missionDescription": "This is mission 2",
+        "chirpoPosition": "-205, 247, 186",
+        "chirpoRotation": "0, 35, 0",
+        "chirpoName": "Timmy",
+        "chirpoColor": 2,
+        "chirpoDialogue": ["Hello there!", "I need your help!", "Can you deliver this package for me?"],
+        "missionCompletionPosition": "0, 0, 0",
+        "missionReward": 100
+    },
+    {
+        "missionId": 3,
+        "missionName": "Mission 3",
+        "missionDescription": "This is mission 3",
+        "chirpoPosition": "-122, 250, 242",
+        "chirpoRotation": "0, 233, 0",
+        "chirpoName": "Tom",
+        "chirpoColor": 3,
+        "chirpoDialogue": ["Hello there!", "I need your help!", "Can you deliver this package for me?", "I will reward you with 100$"],
+        "missionCompletionPosition": "0, 0, 0",
+        "missionReward": 100
+    }
+]

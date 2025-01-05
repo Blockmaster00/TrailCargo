@@ -1,71 +1,19 @@
 local playerDataTable = {}
+local doDaylightCycle = 1
 
 tm.physics.AddTexture("assets/map.png", "Map")
 
 tm.physics.AddTexture("vehicles/StarterBuggy.png", "Starter Buggy")
 tm.physics.AddTexture("vehicles/RescueBoat.png", "Rescue Boat")
 tm.physics.AddTexture("vehicles/IbishuPigeon.png", "Ibishu Pigeon")
+tm.physics.AddTexture("vehicles/HeavyTruck.png", "Heavy Truck")
 
-local vehicles = {
-    {
-        vehicleId = 1,
-        vehicleName = "Starter Buggy",
-        vehicleDescription = "This Buggy is a great starter vehicle",
-        vehicleValue = 50
-    },
-    {
-        vehicleId = 2,
-        vehicleName = "Rescue Boat",
-        vehicleDescription = "This small Boat comes with a small gun",
-        vehicleValue = 100
-    },
-    {
-        vehicleId = 3,
-        vehicleName = "Ibishu Pigeon",
-        vehicleDescription = "This tiny car has a small loading area",
-        vehicleValue = 150
-    }
-}
+local vehicle_data_path = "vehicles.json"
+local vehicles = json.parse(tm.os.ReadAllText_Static(vehicle_data_path))
 
-local missionDataTable = {
-    {
-        missionId = 1,
-        missionName = "Mission 1",
-        missionDescription = "This is mission 1",
-        chirpoPosition = tm.vector3.Create(-168, 274, 365),
-        chirpoRotation = tm.vector3.Create(0, 312, 0),
-        chirpoName = "Tim",
-        chirpoColor = 1,
-        chirpoDialogue = {"Hello there!", "I need your help!", "I want to send a letter to Timmy", "Can you please deliver it?","I will reward you with 100$"},
-        missionCompletionPosition = tm.vector3.Create(0, 0, 0),
-        missionReward = 100
-    },
-    {
-        missionId = 2,
-        missionName = "Mission 2",
-        missionDescription = "This is mission 2",
-        chirpoPosition = tm.vector3.Create(-205, 247, 186),
-        chirpoRotation = tm.vector3.Create(0, 35, 0),
-        chirpoName = "Timmy",
-        chirpoColor = 2,
-        chirpoDialogue = {"Hello there!", "I need your help!", "Can you deliver this package for me?", "I will reward you with 100$"},
-        missionCompletionPosition = tm.vector3.Create(0, 0, 0),
-        missionReward = 100
-    },
-    {
-        missionId = 3,
-        missionName = "Mission 3",
-        missionDescription = "This is mission 3",
-        chirpoPosition = tm.vector3.Create(-122, 250, 242),
-        chirpoRotation = tm.vector3.Create(0, 233, 0),
-        chirpoName = "Tom",
-        chirpoColor = 3,
-        chirpoDialogue = {"Hello there!", "I need your help!", "Can you deliver this package for me?", "I will reward you with 100$"},
-        missionCompletionPosition = tm.vector3.Create(0, 0, 0),
-        missionReward = 100
-    }
-}
 
+local mission_data_path = "missions.json"
+local missionDataTable = json.parse(tm.os.ReadAllText_Static(mission_data_path))
 
 
 function update()
@@ -77,21 +25,18 @@ end
 
 function playerUpdate(playerId)
     local playerData = playerDataTable[playerId]
+    local playerPosition = tm.players.GetPlayerTransform(playerId).GetPosition()
 
-    for key, mission in pairs(missionDataTable) do
-        if playerData.inInteractionProximity == 0 and (tm.players.GetPlayerTransform(playerId).GetPosition() - mission.chirpoPosition).Magnitude() < 7 then
-            playerData.inInteractionProximity = mission.missionId
-            playerData.interactionMessage = tm.playerUI.AddSubtleMessageForPlayer(playerId, "Mission", "Press E to talk to "..mission.chirpoName, 100)
-        else
-            if playerData.inInteractionProximity ~= 0 then
-                if(tm.players.GetPlayerTransform(playerId).GetPosition() - missionDataTable[playerData.inInteractionProximity].chirpoPosition).Magnitude() > 7 then
-                    playerData.inInteractionProximity = 0
-                    playerData.chirpoDialogue = 0
-                    tm.playerUI.RemoveSubtleMessageForPlayer(playerId, playerData.interactionMessage)
-                end
-            end
+    if playerData.activeMission ~= 0 then                                                       -- possible to change to Trigger Boxes [for better performance]
+        local activeMission = missionDataTable[playerData.activeMission]
+        local completionPosition = tm.vector3.Create(activeMission.missionCompletionPosition)
+
+        if (playerPosition - completionPosition).Magnitude() < 7 then
+            --Mission completed
+            missionCompleted(playerId, activeMission)
         end
     end
+
 end
 
 function onPlayerJoined(player)
@@ -119,9 +64,9 @@ function onPlayerJoined(player)
         map = "",                   --Map object
         currentUISelection = 1,
 
-        currentMission = 0,
+        activeMission = 0,
         interactionMessage = "",   -- Subtle message for Interaction display
-        inInteractionProximity = 0,
+        interactionProximity = 0,
         chirpoDialogue = 0,
         chirpoMessage = "",         --Subtle message for Chirpo Dialogue
 
@@ -197,6 +142,7 @@ function toggleInventory(playerId)
 
     if playerData.hasInventoryOpen then
         tm.os.Log("Player: "..playerId.. " | Inventory closed")
+        playAudio(playerId, "HideHologram")
         playerData.hasInventoryOpen = false
 
         tm.playerUI.RemoveSubtleMessageForPlayer(playerId, playerData.inventoryMessage[1])
@@ -209,6 +155,7 @@ function toggleInventory(playerId)
         return
     end
     tm.os.Log("Player: "..playerId.. " | Inventory opened")
+    playAudio(playerId, "ShowHologram")
     playerData.hasInventoryOpen = true
 
     if tableContains(inventory,playerData.currentUISelection) then
@@ -316,7 +263,7 @@ function inventorySelect(playerId)
         toggleInventory(playerId)
         tm.players.SpawnStructure(playerId, vehicles[playerData.currentUISelection].vehicleName, "spawned"..playerData.currentUISelection..playerId, tm.players.GetPlayerTransform(playerId).GetPosition(), tm.vector3.Create(0, 0, 0))
         tm.players.PlacePlayerInSeat(playerId, "spawned"..playerData.currentUISelection..playerId)
-
+        playAudio(playerId, "UI_Rally_BlockUnlock")
         tm.os.Log("Player: "..playerId.. " | Selection spawned")
     else
 
@@ -325,6 +272,7 @@ function inventorySelect(playerId)
             table.insert(inventory, playerData.currentUISelection)
             tm.os.Log("Player: "..playerId.. " | Vehicle bought: "..vehicles[playerData.currentUISelection].vehicleName)
             tm.playerUI.AddSubtleMessageForPlayer(playerId, "Vehicle bought", "You bought: "..vehicles[playerData.currentUISelection].vehicleName, 4)
+            playAudio(playerId, "Play_AVI_Cinematic_AncientWpnSlice_Awarded_01")
             updateInventoryMessage(playerId)
         else
             tm.os.Log("Player: "..playerId.. " | Not enough money")
@@ -338,13 +286,42 @@ end
             --MISSIONS --
             --|||||||||--
 
+function enterChirpoProximity(playerId)
+    local playerData = playerDataTable[playerId]
+
+    for key, mission in pairs(missionDataTable) do
+        local chirpoPosition = tm.vector3.Create(mission.chirpoPosition)
+        if (tm.players.GetPlayerTransform(playerId).GetPosition() - chirpoPosition).Magnitude() < 10 then
+            playerData.interactionProximity = mission.missionId
+            playerData.interactionMessage = tm.playerUI.AddSubtleMessageForPlayer(playerId, "Mission", "Press E to talk to "..mission.chirpoName, 100)
+        end
+    end
+end
+
+function leaveChirpoProximity(playerId)
+    local playerData = playerDataTable[playerId]
+
+    playerData.interactionProximity = 0
+    playerData.chirpoDialogue = 0
+    tm.playerUI.RemoveSubtleMessageForPlayer(playerId, playerData.interactionMessage)
+end
+
 function prepareChirpos()
     local chirpos = {"PFB_Chirpo_Blue", "PFB_Chirpo_Dark", "PFB_Chirpo_LightGreen", "PFB_Chirpo_Orange", "PFB_Chirpo_Purple", "PFB_Chirpo_White"}
     for key, mission in pairs(missionDataTable) do
-        local chirpo = tm.physics.SpawnObject(mission.chirpoPosition, chirpos[mission.chirpoColor])
-        chirpo.GetTransform().SetRotation(mission.chirpoRotation)
+        local chirpoPosition = tm.vector3.Create(mission.chirpoPosition)
+        local chirpoRotation = tm.vector3.Create(mission.chirpoRotation)
+
+        local chirpo = tm.physics.SpawnObject(chirpoPosition, chirpos[mission.chirpoColor])
+        chirpo.GetTransform().SetRotation(chirpoRotation)
+
+        local chirpoTriggerBox = tm.physics.SpawnBoxTrigger(chirpoPosition, tm.vector3.Create(7, 7, 7))
+        tm.physics.RegisterFunctionToCollisionEnterCallback(chirpoTriggerBox, "enterChirpoProximity")
+        tm.physics.RegisterFunctionToCollisionExitCallback(chirpoTriggerBox, "leaveChirpoProximity")
+        chirpoTriggerBox.SetIsVisible(false)
     end
 end
+
 
 function interact(playerId)
     local playerData = playerDataTable[playerId]
@@ -353,8 +330,8 @@ function interact(playerId)
         return
     end
 
-    if playerData.inInteractionProximity ~= 0 then
-        local missionId = playerData.inInteractionProximity
+    if playerData.interactionProximity ~= 0 then
+        local missionId = playerData.interactionProximity
         local chirpoDialogue = missionDataTable[missionId].chirpoDialogue
         if playerData.chirpoDialogue == 0 then
             tm.os.Log("Player: "..playerId.. " | Interaction started with Chirpo: "..missionId)
@@ -366,11 +343,17 @@ function interact(playerId)
             playerData.chirpoDialogue = playerData.chirpoDialogue + 1
             tm.playerUI.SubtleMessageUpdateMessageForPlayer(playerId, playerData.chirpoMessage, chirpoDialogue[playerData.chirpoDialogue])
             else
-                tm.os.Log("Player: "..playerId.. " | Interaction ended with Chirpo: "..missionId)
-                playerData.chirpoDialogue = 0
-                tm.playerUI.RemoveSubtleMessageForPlayer(playerId, playerData.chirpoMessage)
+                if playerData.chirpoDialogue == #chirpoDialogue then
+                    tm.playerUI.SubtleMessageUpdateMessageForPlayer(playerId, playerData.chirpoMessage, "I will reward you with "..missionDataTable[missionId].missionReward.."$")
+                    playerData.chirpoDialogue = playerData.chirpoDialogue + 1
+                else
+                    tm.os.Log("Player: "..playerId.. " | Interaction ended with Chirpo: "..missionId)
+                    playerData.chirpoDialogue = 0
+                    tm.playerUI.RemoveSubtleMessageForPlayer(playerId, playerData.chirpoMessage)
 
-                startMission(playerId, missionId)
+                    startMission(playerId, missionId)
+                end
+
             end
         end
     end
@@ -379,19 +362,39 @@ end
 function startMission(playerId, missionId)
     local playerData = playerDataTable[playerId]
 
-    if playerData.currentMission == 0 then
-        playerData.currentMission = missionId
+    if playerData.activeMission == 0 then
+        playerData.activeMission = missionId
         tm.os.Log("Player: "..playerId.. " | Mission started: "..missionId)
-        tm.playerUI.AddSubtleMessageForPlayer(playerId, "Mission", "Complete the delivery", 10)
+        tm.playerUI.AddSubtleMessageForPlayer(playerId, "Mission started", "Complete the delivery", 5)
     else
         tm.os.Log("Player: "..playerId.. " | Mission already active")
-        tm.playerUI.AddSubtleMessageForPlayer(playerId, "Mission", "You are already doing a mission", 10)
+        tm.playerUI.AddSubtleMessageForPlayer(playerId, "Mission ongoing", "You are already doing a mission", 5)
     end
 end
+
+function missionCompleted(playerId, mission)
+    local playerData = playerDataTable[playerId]
+
+    playerData.balance = playerData.balance + mission.missionReward
+    playerData.activeMission = 0
+    tm.os.Log("Player: "..playerId.. " | Mission completed: "..mission.missionId)
+    tm.playerUI.AddSubtleMessageForPlayer(playerId, "Mission completed", "You earned: "..mission.missionReward.."$", 5)
+end
+
 
             --|||||||||--
             --   MISC  --
             --|||||||||--
+
+function stopAudio(playerId)
+    local playerObject = tm.players.GetPlayerGameObject(playerId)
+    tm.audio.StopAllAudioAtGameobject(playerObject)
+end
+
+function playAudio(playerId, audio)
+    local playerObject = tm.players.GetPlayerGameObject(playerId)
+    tm.audio.PlayAudioAtGameobject(audio, playerObject)
+end
 
 function toggleChat(playerId)
     local playerData = playerDataTable[playerId]

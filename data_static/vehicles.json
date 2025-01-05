@@ -1,0 +1,26 @@
+[
+    {
+        "vehicleId": 1,
+        "vehicleName": "Starter Buggy",
+        "vehicleDescription": "This Buggy is a great starter vehicle",
+        "vehicleValue": 50
+    },
+    {
+        "vehicleId": 2,
+        "vehicleName": "Rescue Boat",
+        "vehicleDescription": "This small Boat comes with a small gun",
+        "vehicleValue": 100
+    },
+    {
+        "vehicleId": 3,
+        "vehicleName": "Ibishu Pigeon",
+        "vehicleDescription": "This tiny car has a small loading area",
+        "vehicleValue": 150
+    },
+    {
+        "vehicleId": 4,
+        "vehicleName": "Heavy Truck",
+        "vehicleDescription": "This Truck can carry a lot of weight",
+        "vehicleValue": 400
+    }
+]
