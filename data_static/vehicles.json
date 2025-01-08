@@ -22,5 +22,17 @@
         "vehicleName": "Heavy Truck",
         "vehicleDescription": "This Truck can carry a lot of weight",
         "vehicleValue": 400
+    },
+    {
+        "vehicleId": 5,
+        "vehicleName": "C20 Trailblazer",
+        "vehicleDescription": "This Car is great for off-road racing",
+        "vehicleValue": 300
+    },
+    {
+        "vehicleId": 6,
+        "vehicleName": "Tractor",
+        "vehicleDescription": "This Car is great for street racing",
+        "vehicleValue": 500
     }
 ]

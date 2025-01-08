@@ -7,6 +7,8 @@ tm.physics.AddTexture("vehicles/StarterBuggy.png", "Starter Buggy")
 tm.physics.AddTexture("vehicles/RescueBoat.png", "Rescue Boat")
 tm.physics.AddTexture("vehicles/IbishuPigeon.png", "Ibishu Pigeon")
 tm.physics.AddTexture("vehicles/HeavyTruck.png", "Heavy Truck")
+tm.physics.AddTexture("vehicles/TrailBlazer.png", "C20 Trailblazer")
+tm.physics.AddTexture("vehicles/Tractor.png", "Tractor")
 
 local playerSaves_path = "playerSaves.json"
 
@@ -64,7 +66,7 @@ function onPlayerJoined(player)
 
     tm.players.SetBuilderEnabled(playerId, true)
 
-    local playerSaves = json.parse(tm.os.ReadAllText_Dynamic(playerSaves_path))
+    local playerSaves = {}--json.parse(tm.os.ReadAllText_Dynamic(playerSaves_path))
 
     local playerName = tm.players.GetPlayerName(playerId)
 
@@ -422,7 +424,12 @@ end
             --|||||||||--
 
 function savePlayerData()
-    local playerSaves = json.parse(tm.os.ReadAllText_Dynamic(playerSaves_path))
+    local success, playerSaves = pcall(function() return json.parse(tm.os.ReadAllText_Dynamic(playerSaves_path)) end)
+    if not success then
+        playerSaves = {}
+        tm.os.Log("Player data file not found -> Creating new file")
+    end
+
     local playerList = tm.players.CurrentPlayers()
 
     for key, player in pairs(playerList) do
