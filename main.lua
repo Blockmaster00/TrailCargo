@@ -1,5 +1,19 @@
+---@diagnostic disable: lowercase-global
 local playerDataTable = {}
 local sessionPlayerData = {}
+local sessionSettings = {
+    gameMode = 1,   --1 = Campaign, 2 = Sandbox
+    doDaylightCycle = true,
+    enablePhysicalCargo = true
+}
+
+local playerDataReference = {
+    activeMission = 0,
+    completedMissions = {},
+
+    balance = 1000,
+    inventory = {1},
+}
 
 tm.physics.AddTexture("assets/map.png", "Map")
 
@@ -73,14 +87,7 @@ function onPlayerJoined(player)
     if playerSaves[playerName] ~= nil then
         playerDataTable[playerId] = playerSaves[playerName]
     else
-        playerDataTable[playerId] = {
-
-            activeMission = 0,
-            completedMissions = {},
-
-            balance = 1000,
-            inventory = {1},
-        }
+        playerDataTable[playerId] = playerDataReference
     end
     sessionPlayerData[playerId] = {
         chatOpen = false,
@@ -123,6 +130,7 @@ function toggleMap(playerId)
 
     if sessionData.hasMapOpen then
         tm.os.Log("Player: "..playerId.. " | Map closed")
+        openCloseMapUI(playerId)
         sessionData.hasMapOpen = false
 
         sessionData.map.Despawn()
@@ -131,6 +139,7 @@ function toggleMap(playerId)
         return
     end
 
+    openCloseMapUI(playerId)
     tm.os.Log("Player: "..playerId.. " | Map opened")
     sessionData.hasMapOpen = true
 
@@ -398,7 +407,7 @@ end
 function startMission(playerId, missionId)
     local playerData = playerDataTable[playerId]
 
-    if playerData.activeMission == 0 then                                           --Check if player is not already doing a mission_data_path
+    if playerData.activeMission == 0 then                                           --Check if player is not already doing a mission
         playerData.activeMission = missionId
         tm.os.Log("Player: "..playerId.. " | Mission started: "..missionId)
         tm.playerUI.AddSubtleMessageForPlayer(playerId, "Mission started", "Complete the delivery", 5)
@@ -441,6 +450,58 @@ function savePlayerData()
     tm.os.Log("Player data saved")
 end
 
+function deletePlayerSave(callbackData)
+    local playerName = tm.players.GetPlayerName(callbackData.playerId)
+    local success, playerSaves = pcall(function() return json.parse(tm.os.ReadAllText_Dynamic(playerSaves_path)) end)
+    if not success then
+        tm.os.Log("Player data file not found")
+        return
+    end
+
+    playerSaves[playerName] = nil
+    playerDataTable[callbackData.playerId] = playerDataReference
+    tm.os.WriteAllText_Dynamic(playerSaves_path, json.serialize(playerSaves))
+    tm.playerUI.AddSubtleMessageForPlayer(callbackData.playerId, playerName, "Player data deleted", 5)
+    tm.os.Log("Player: "..callbackData.playerId.." | Player data deleted")
+end
+
+function openCloseMapUI(playerId)
+    local sessionData = sessionPlayerData[playerId]
+
+    if sessionData.hasMapOpen then
+        tm.playerUI.ClearUI(playerId)
+    else
+        tm.playerUI.AddUILabel(playerId, "tooltip", "press F4 to interact")
+        if playerId == 0 then
+            tm.playerUI.AddUILabel(playerId, "SessionHeading", "┏------    Session Settings    ------┓")
+            tm.playerUI.AddUILabel(playerId, "savePlayerDataLabel", "•Frequency of Player Data Saves: ")
+            tm.playerUI.AddUIText(playerId, "savePlayerDataText", tostring(savePlayerDataTimer), updateSavePlayerDataTimer)
+            tm.playerUI.AddUIButton(playerId, "SavePlayerDataButton", "Save all Player Data", savePlayerData)
+            local gameModes = {"Sandbox", "Campaign"}
+            tm.playerUI.AddUILabel(playerId, "switchGameModeLabel", "•Switch to "..gameModes[sessionSettings.gameMode].." Mode: ")
+            tm.playerUI.AddUIButton(playerId, "SwitchModeButton", "Switch", switchMode)
+        end
+        tm.playerUI.AddUILabel(playerId, "PrivateHeading", "┏------    Private Settings    ------┓")
+        tm.playerUI.AddUILabel(playerId, "deletePlayerSaveLabel", "•Delete my Campaign Save:")
+        tm.playerUI.AddUIButton(playerId, "DeletePlayerSaveButton", "Delete", deletePlayerSave, playerId)
+    end
+end
+
+function updateMapUI(playerId)
+    local sessionData = sessionPlayerData[playerId]
+
+    if sessionData.hasMapOpen then
+        local gameModes = {"Sandbox", "Campaign"}
+        tm.playerUI.SetUIValue(playerId, "savePlayerDataText", tostring(savePlayerDataTimer))
+        tm.playerUI.SetUIValue(playerId, "switchGameModeLabel", "•Switch to " .. gameModes[sessionSettings.gameMode] .. " Mode: ")
+
+    end
+end
+
+--
+-- AUDIO
+--
+
 function stopAudio(playerId)
     local playerObject = tm.players.GetPlayerGameObject(playerId)
     tm.audio.StopAllAudioAtGameobject(playerObject)
@@ -449,6 +510,25 @@ end
 function playAudio(playerId, audio)
     local playerObject = tm.players.GetPlayerGameObject(playerId)
     tm.audio.PlayAudioAtGameobject(audio, playerObject)
+end
+
+--
+--
+
+function updateSavePlayerDataTimer(callbackData)
+    local value = tonumber(callbackData.value)
+    if value and value >= 1 and value <= 1000 then
+        savePlayerDataTimer = math.floor(value)  -- Ensure the value is an integer
+    end
+end
+
+function switchMode()
+    if sessionSettings.gameMode == 1 then
+        sessionSettings.gameMode = 2
+    else
+        sessionSettings.gameMode = 1
+    end
+    updateMapUI(0)
 end
 
 function toggleChat(playerId)
