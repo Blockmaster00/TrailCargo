@@ -3,7 +3,7 @@ local playerDataTable = {}
 local sessionPlayerData = {}
 local sessionSettings = {
     gameMode = 1,   --1 = Campaign, 2 = Sandbox
-    doDaylightCycle = true,
+    doDaylightCycle = 1,   --1 = off, 2 = on
     enablePhysicalCargo = true
 }
 
@@ -15,6 +15,8 @@ local playerDataReference = {
     inventory = {1},
 }
 
+tm.physics.AddMesh("assets/vehicleDisplay.obj", "Garage")
+tm.physics.AddTexture("assets/vehicleDisplayTex.png", "GarageTex")
 tm.physics.AddTexture("assets/map.png", "Map")
 
 tm.physics.AddTexture("vehicles/StarterBuggy.png", "Starter Buggy")
@@ -40,7 +42,6 @@ function update()
     local playerList = tm.players.CurrentPlayers()
 
     if tm.os.GetTime() - lastPlayerDataSave > savePlayerDataTimer then
-        lastPlayerDataSave = tm.os.GetTime()
         savePlayerData()
     end
 
@@ -147,6 +148,7 @@ function toggleMap(playerId)
     tm.players.ActivateCamera(playerId, 0)
 
     sessionData.map = tm.physics.SpawnCustomObject(tm.vector3.Create(8, 1100, playerId * 100),"","Map")
+    sessionData.map.GetTransform().SetScale(tm.vector3.Create(0.5, 14, 14))
 end
 
 
@@ -206,7 +208,8 @@ function toggleInventory(playerId)
     tm.players.AddCamera(playerId, tm.vector3.Create(0, 1000, playerId * 100), tm.vector3.Create(1, 0, 0))
     tm.players.ActivateCamera(playerId, 0)
 
-    sessionData.garage = tm.physics.SpawnCustomObject(tm.vector3.Create(8, 998, playerId * 100),"","texture.png")            --Platform for Vehicles to spawn on (YET TO MODEL)
+    sessionData.garage = tm.physics.SpawnCustomObject(tm.vector3.Create(8, 998, playerId * 100),"Garage", "GarageTex")
+    sessionData.garage.GetTransform().SetScale(tm.vector3.Create(2.5, 2.5, 2.5))
     tm.players.SpawnStructure(playerId, vehicles[sessionData.currentUISelection].vehicleName, "UIVehicle"..sessionData.currentUISelection..playerId, tm.vector3.Create(8, 999, playerId * 100 - 2), tm.vector3.Create(0, 0, 0))
 
 end
@@ -433,6 +436,8 @@ end
             --|||||||||--
 
 function savePlayerData()
+    lastPlayerDataSave = tm.os.GetTime()
+
     local success, playerSaves = pcall(function() return json.parse(tm.os.ReadAllText_Dynamic(playerSaves_path)) end)
     if not success then
         playerSaves = {}
@@ -479,7 +484,10 @@ function openCloseMapUI(playerId)
             tm.playerUI.AddUIButton(playerId, "SavePlayerDataButton", "Save all Player Data", savePlayerData)
             local gameModes = {"Sandbox", "Campaign"}
             tm.playerUI.AddUILabel(playerId, "switchGameModeLabel", "•Switch to "..gameModes[sessionSettings.gameMode].." Mode: ")
-            tm.playerUI.AddUIButton(playerId, "SwitchModeButton", "Switch", switchMode)
+            tm.playerUI.AddUIButton(playerId, "SwitchModeButton", "Switch", switchGameMode)
+            tm.playerUI.AddUILabel(playerId, "toggleDaylightCycleLabel", "•Toggle Daylight Cycle: ")
+            local toggleDaylightCycleButtonOptions = {"on", "off"}
+            tm.playerUI.AddUIButton(playerId, "toggleDaylightCycleButton", "•Switch to "..toggleDaylightCycleButtonOptions[sessionSettings.doDaylightCycle], toggleDaylightCycle)
         end
         tm.playerUI.AddUILabel(playerId, "PrivateHeading", "┏------    Private Settings    ------┓")
         tm.playerUI.AddUILabel(playerId, "deletePlayerSaveLabel", "•Delete my Campaign Save:")
@@ -494,6 +502,8 @@ function updateMapUI(playerId)
         local gameModes = {"Sandbox", "Campaign"}
         tm.playerUI.SetUIValue(playerId, "savePlayerDataText", tostring(savePlayerDataTimer))
         tm.playerUI.SetUIValue(playerId, "switchGameModeLabel", "•Switch to " .. gameModes[sessionSettings.gameMode] .. " Mode: ")
+        local toggleDaylightCycleButtonOptions = {"on", "off"}
+        tm.playerUI.SetUIValue(playerId, "toggleDaylightCycleButton", "•Switch to "..toggleDaylightCycleButtonOptions[sessionSettings.doDaylightCycle])
 
     end
 end
@@ -522,7 +532,12 @@ function updateSavePlayerDataTimer(callbackData)
     end
 end
 
-function switchMode()
+function toggleDaylightCycle()
+    sessionSettings.doDaylightCycle = sessionSettings.doDaylightCycle % 2 + 1
+    updateMapUI(0)
+end
+
+function switchGameMode()
     if sessionSettings.gameMode == 1 then
         sessionSettings.gameMode = 2
     else
